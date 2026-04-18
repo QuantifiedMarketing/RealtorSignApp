@@ -22,10 +22,14 @@ function relativeTime(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function JobCard({ job }: { job: Job }) {
+function JobCard({ job, onTakedown }: { job: Job; onTakedown: (id: string) => void }) {
   const s = STATUS[job.status];
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.75}
+      onPress={() => router.push({ pathname: '/job-detail', params: { id: job.id } })}
+    >
       <View style={styles.cardTop}>
         <View style={styles.cardAddress}>
           <Ionicons name="location" size={14} color={BrandColors.primary} style={styles.addrIcon} />
@@ -59,18 +63,24 @@ function JobCard({ job }: { job: Job }) {
       ) : null}
 
       {job.status === 'completed' && (
-        <TouchableOpacity style={styles.takedownBtn} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.takedownBtn} activeOpacity={0.8} onPress={() => onTakedown(job.id)}>
           <Ionicons name="arrow-undo-outline" size={14} color={BrandColors.primary} />
           <Text style={styles.takedownText}>Request Takedown</Text>
         </TouchableOpacity>
       )}
-    </View>
+      {job.status === 'takedown_requested' && (
+        <View style={styles.takedownBtn}>
+          <Ionicons name="hourglass-outline" size={14} color={BrandColors.textSecondary} />
+          <Text style={[styles.takedownText, { color: BrandColors.textSecondary }]}>Takedown Requested</Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
 export default function MyJobsScreen() {
   const { user } = useAuth();
-  const { getJobsByAgent } = useJobs();
+  const { getJobsByAgent, updateStatus } = useJobs();
   const jobs = user ? getJobsByAgent(user.id) : [];
 
   return (
@@ -85,7 +95,12 @@ export default function MyJobsScreen() {
         keyExtractor={j => j.id}
         contentContainerStyle={jobs.length === 0 ? styles.emptyContainer : styles.list}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <JobCard job={item} />}
+        renderItem={({ item }) => (
+          <JobCard
+            job={item}
+            onTakedown={id => updateStatus(id, 'takedown_requested')}
+          />
+        )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="briefcase-outline" size={56} color={BrandColors.border} />

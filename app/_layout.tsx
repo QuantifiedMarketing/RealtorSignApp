@@ -18,6 +18,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(admin)" />
             <Stack.Screen name="submit-job" options={{ headerShown: false }} />
+            <Stack.Screen name="job-detail" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style="auto" />

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export type UserRole = 'agent' | 'admin';
 
@@ -8,60 +9,84 @@ export interface User {
   name: string;
   role: UserRole;
   phone?: string;
-  placardCount?: number;
+  brokerage?: string;
+  placardCount: number;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  'agent@test.com': {
-    password: 'password',
-    user: {
-      id: '1',
-      email: 'agent@test.com',
-      name: 'Jane Smith',
-      role: 'agent',
-      phone: '555-123-4567',
-      placardCount: 12,
-    },
-  },
-  'admin@test.com': {
-    password: 'password',
-    user: {
-      id: '2',
-      email: 'admin@test.com',
-      name: 'Mike Johnson',
-      role: 'admin',
-    },
-  },
-};
+async function fetchProfile(userId: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  if (error || !data) {
+    console.warn('[auth] fetchProfile failed:', error?.message, 'userId:', userId);
+    return null;
+  }
+  return {
+    id: data.id,
+    email: data.email,
+    name: data.name,
+    role: data.role,
+    phone: data.phone ?? undefined,
+    brokerage: data.brokerage ?? undefined,
+    placardCount: data.placard_count ?? 0,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Load the initial session directly — this runs outside the auth lock.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const profile = await fetchProfile(session.user.id);
+        setUser(profile);
+      }
+      setIsLoading(false);
+    });
+
+    // Watch for subsequent sign-in / sign-out events.
+    // IMPORTANT: do NOT call supabase.from() synchronously inside this callback —
+    // the SDK holds an internal auth lock during the callback and any database
+    // call that needs the session will deadlock. Defer with setTimeout(0).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        return;
+      }
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        const userId = session.user.id;
+        setTimeout(async () => {
+          const profile = await fetchProfile(userId);
+          setUser(profile);
+        }, 0);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 700));
-      const record = MOCK_USERS[email.toLowerCase()];
-      if (!record || record.password !== password) {
-        throw new Error('Invalid email or password.');
-      }
-      setUser(record.user);
-    } finally {
-      setIsLoading(false);
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
   };
 
-  const logout = () => setUser(null);
+  const logout = async () => {
+    setUser(null);
+    await supabase.auth.signOut();
+  };
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout }}>

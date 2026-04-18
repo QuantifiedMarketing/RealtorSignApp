@@ -23,4 +23,4 @@
  *      "ios":     { "config": { "googleMapsApiKey": "<key>" } }
  * ─────────────────────────────────────────────────────────────────
  */
-export const GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY_HERE';
+export const GOOGLE_MAPS_API_KEY = 'AIzaSyDEXKYofAMnXCBqDSOLakEhCkF7Hmt6AFY';

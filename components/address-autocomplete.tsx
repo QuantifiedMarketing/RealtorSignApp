@@ -42,7 +42,7 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
       const url =
         `https://nominatim.openstreetmap.org/search` +
         `?q=${encodeURIComponent(query)}` +
-        `&format=json&limit=5&countrycodes=us&addressdetails=1`;
+        `&format=json&limit=5&countrycodes=ca&addressdetails=1`;
       const res = await fetch(url, {
         headers: { 'User-Agent': 'SignTrack-DevApp/1.0' },
       });

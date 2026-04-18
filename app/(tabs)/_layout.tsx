@@ -1,11 +1,15 @@
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth';
 import { BrandColors } from '@/constants/theme';
 
 export default function AgentTabLayout() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
+  const insets = useSafeAreaInsets();
+
+  if (isLoading) return null;
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role !== 'agent') return <Redirect href="/(admin)/" />;
 
@@ -19,8 +23,8 @@ export default function AgentTabLayout() {
           backgroundColor: BrandColors.surface,
           borderTopColor: BrandColors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 6,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom,
         },
         tabBarLabelStyle: {
           fontSize: 11,

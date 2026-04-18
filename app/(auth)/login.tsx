@@ -117,8 +117,8 @@ export default function LoginScreen() {
 
             <View style={styles.hintBox}>
               <Text style={styles.hintTitle}>Demo Credentials</Text>
-              <Text style={styles.hintText}>Agent: agent@test.com / password</Text>
-              <Text style={styles.hintText}>Admin: admin@test.com / password</Text>
+              <Text style={styles.hintText}>Agent: agent@test.com / Password</Text>
+              <Text style={styles.hintText}>Admin: admin@test.com / Password</Text>
             </View>
           </View>
         </ScrollView>

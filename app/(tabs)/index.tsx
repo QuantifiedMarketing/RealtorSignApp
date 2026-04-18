@@ -4,19 +4,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/auth';
+import { Job, JobStatus, useJobs } from '@/context/jobs';
 import { BrandColors } from '@/constants/theme';
 
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: string;
-  label: string;
-  value: number;
-  color: string;
-}) {
+const STATUS_BADGE: Record<JobStatus, { label: string; color: string; bg: string }> = {
+  pending:            { label: 'Pending',       color: '#92400E', bg: '#FEF3C7' },
+  active:             { label: 'Active',        color: BrandColors.primary, bg: '#DBEAFE' },
+  completed:          { label: 'Completed',     color: '#065F46', bg: '#D1FAE5' },
+  takedown_requested: { label: 'Takedown Req.', color: '#5B21B6', bg: '#EDE9FE' },
+};
+
+function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   return (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
       <View style={[styles.statIcon, { backgroundColor: color + '1A' }]}>
@@ -28,16 +26,46 @@ function StatCard({
   );
 }
 
+function RecentJobRow({ job }: { job: Job }) {
+  const s = STATUS_BADGE[job.status];
+  return (
+    <View style={styles.recentRow}>
+      <View style={styles.recentLeft}>
+        <Text style={styles.recentAddr} numberOfLines={1}>{job.address}</Text>
+        <Text style={styles.recentDate}>
+          {job.preferredDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </Text>
+      </View>
+      <View style={[styles.badge, { backgroundColor: s.bg }]}>
+        <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
+      </View>
+    </View>
+  );
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning,';
+  if (h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+
 export default function AgentDashboard() {
   const { user } = useAuth();
+  const { getJobsByAgent } = useJobs();
   const firstName = user?.name?.split(' ')[0] ?? 'there';
+
+  const myJobs = user ? getJobsByAgent(user.id) : [];
+  const activeCount = myJobs.filter(j => j.status === 'active').length;
+  const pendingCount = myJobs.filter(j => j.status === 'pending').length;
+  const recentJobs = myJobs.slice(0, 3);
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning,</Text>
+            <Text style={styles.greeting}>{greeting()}</Text>
             <Text style={styles.name}>{firstName}</Text>
           </View>
           <View style={styles.avatar}>
@@ -53,8 +81,8 @@ export default function AgentDashboard() {
             value={user?.placardCount ?? 0}
             color={BrandColors.primary}
           />
-          <StatCard icon="location-outline" label="Active Signs" value={0} color={BrandColors.success} />
-          <StatCard icon="time-outline" label="Pending" value={0} color={BrandColors.accent} />
+          <StatCard icon="location-outline" label="Active Signs" value={activeCount} color={BrandColors.success} />
+          <StatCard icon="time-outline" label="Pending" value={pendingCount} color={BrandColors.accent} />
         </View>
 
         {(user?.placardCount ?? 0) <= 3 && (
@@ -77,11 +105,31 @@ export default function AgentDashboard() {
         </TouchableOpacity>
 
         <Text style={styles.sectionLabel}>Recent Jobs</Text>
-        <View style={styles.emptyState}>
-          <Ionicons name="clipboard-outline" size={48} color={BrandColors.border} />
-          <Text style={styles.emptyTitle}>No jobs yet</Text>
-          <Text style={styles.emptySub}>Submit your first job to get started</Text>
-        </View>
+        {recentJobs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="clipboard-outline" size={48} color={BrandColors.border} />
+            <Text style={styles.emptyTitle}>No jobs yet</Text>
+            <Text style={styles.emptySub}>Submit your first job to get started</Text>
+          </View>
+        ) : (
+          <View style={styles.recentCard}>
+            {recentJobs.map((job, i) => (
+              <View key={job.id} style={i < recentJobs.length - 1 ? styles.recentDivider : undefined}>
+                <RecentJobRow job={job} />
+              </View>
+            ))}
+            {myJobs.length > 3 && (
+              <TouchableOpacity
+                style={styles.viewAllBtn}
+                onPress={() => router.push('/(tabs)/explore')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>View all {myJobs.length} jobs</Text>
+                <Ionicons name="chevron-forward" size={14} color={BrandColors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -169,6 +217,38 @@ const styles = StyleSheet.create({
   actionText: { flex: 1 },
   actionTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
   actionSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 },
+  recentCard: {
+    backgroundColor: BrandColors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  recentLeft: { flex: 1 },
+  recentAddr: { fontSize: 14, fontWeight: '600', color: BrandColors.textPrimary },
+  recentDate: { fontSize: 12, color: BrandColors.textSecondary, marginTop: 2 },
+  recentDivider: { borderBottomWidth: 1, borderBottomColor: BrandColors.divider },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, flexShrink: 0 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 4,
+    borderTopWidth: 1,
+    borderTopColor: BrandColors.divider,
+  },
+  viewAllText: { fontSize: 13, fontWeight: '600', color: BrandColors.primary },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 40,
@@ -180,11 +260,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: BrandColors.textPrimary,
-    marginTop: 12,
-  },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: BrandColors.textPrimary, marginTop: 12 },
   emptySub: { fontSize: 13, color: BrandColors.textSecondary, marginTop: 4 },
 });

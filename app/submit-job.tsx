@@ -85,14 +85,18 @@ export default function SubmitJobScreen() {
       return;
     }
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 800));
-    submitJob(
-      { address, preferredDate: date, notes, pinCoords },
-      user!.id,
-      user!.name,
-    );
-    setSubmitting(false);
-    setSubmitted(true);
+    try {
+      await submitJob(
+        { address, preferredDate: date, notes, pinCoords },
+        user!.id,
+        user!.name,
+      );
+      setSubmitted(true);
+    } catch (e: any) {
+      Alert.alert('Submission Failed', e.message ?? 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {

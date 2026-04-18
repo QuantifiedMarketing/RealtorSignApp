@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "Bash(npm install *)",
+      "Bash(claude doctor *)",
+      "Bash(sudo npm *)",
+      "Bash(claude *)"
     ]
   }
 }

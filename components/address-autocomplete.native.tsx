@@ -1,13 +1,16 @@
 // Native (iOS / Android): uses Google Places Autocomplete + Details API via fetch.
-// No CORS restriction in React Native — direct API calls work fine.
+// Predictions are rendered in a Modal so they always appear above native views
+// (e.g. the MapView SurfaceView) which otherwise paint over JS-layer dropdowns.
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,7 +38,16 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
   const [text, setText] = useState(value);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(false);
+  // Position of the input on screen — used to anchor the Modal dropdown
+  const [dropdownAnchor, setDropdownAnchor] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const inputWrapperRef = useRef<View>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const measureInput = () => {
+    inputWrapperRef.current?.measureInWindow((x, y, width, height) => {
+      setDropdownAnchor({ x, y, width, height });
+    });
+  };
 
   const fetchPredictions = async (input: string) => {
     if (!API_READY) return;
@@ -45,11 +57,16 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
         `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
         `?input=${encodeURIComponent(input)}` +
         `&types=address` +
-        `&components=country:us` +
+        `&components=country:ca` +
         `&key=${GOOGLE_MAPS_API_KEY}`;
       const res = await fetch(url);
       const json = await res.json();
-      setPredictions(json.status === 'OK' ? (json.predictions as Prediction[]).slice(0, 5) : []);
+      if (json.status === 'OK') {
+        setPredictions((json.predictions as Prediction[]).slice(0, 5));
+        measureInput();
+      } else {
+        setPredictions([]);
+      }
     } catch {
       setPredictions([]);
     } finally {
@@ -60,8 +77,11 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
   const handleChange = (val: string) => {
     setText(val);
     if (debounce.current) clearTimeout(debounce.current);
-    if (val.length < 3) { setPredictions([]); return; }
-    debounce.current = setTimeout(() => fetchPredictions(val), 350);
+    if (val.length < 3) {
+      setPredictions([]);
+      return;
+    }
+    debounce.current = setTimeout(() => fetchPredictions(val), 400);
   };
 
   const handleSelect = async (prediction: Prediction) => {
@@ -95,11 +115,16 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
     }
   };
 
-  const showDropdown = predictions.length > 0;
+  const dismissDropdown = () => setPredictions([]);
 
   return (
-    <View style={styles.wrapper}>
-      <View style={[styles.inputRow, showDropdown && styles.inputRowOpen]}>
+    <View>
+      {/* Input row — measure its screen position so the Modal dropdown aligns with it */}
+      <View
+        ref={inputWrapperRef}
+        onLayout={measureInput}
+        style={[styles.inputRow, predictions.length > 0 && styles.inputRowOpen]}
+      >
         <Ionicons name="search-outline" size={18} color={BrandColors.textSecondary} />
         <TextInput
           style={styles.input}
@@ -107,8 +132,9 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
           onChangeText={handleChange}
           placeholder="123 Main St, City, State"
           placeholderTextColor={BrandColors.textSecondary}
-          autoCapitalize="words"
+          autoCapitalize="none"
           autoCorrect={false}
+          disableFullscreenUI
           returnKeyType="search"
         />
         {loading ? (
@@ -132,29 +158,50 @@ export default function AddressAutocomplete({ value, onSelect }: Props) {
         </View>
       )}
 
-      {showDropdown && (
-        <View style={styles.dropdown}>
-          {predictions.map((p, i) => (
-            <TouchableOpacity
-              key={p.place_id}
-              style={[styles.suggestion, i < predictions.length - 1 && styles.divider]}
-              onPress={() => handleSelect(p)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="location-outline" size={15} color={BrandColors.textSecondary} />
-              <Text style={styles.suggestionText} numberOfLines={2}>
-                {p.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+      {/* Modal keeps the list in a separate window layer, above MapView's SurfaceView */}
+      <Modal
+        visible={predictions.length > 0}
+        transparent
+        animationType="none"
+        onRequestClose={dismissDropdown}
+      >
+        <TouchableWithoutFeedback onPress={dismissDropdown}>
+          <View style={StyleSheet.absoluteFill}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.dropdown,
+                  {
+                    position: 'absolute',
+                    top: dropdownAnchor.y + dropdownAnchor.height,
+                    left: dropdownAnchor.x,
+                    width: dropdownAnchor.width,
+                  },
+                ]}
+              >
+                {predictions.map((p, i) => (
+                  <TouchableOpacity
+                    key={p.place_id}
+                    style={[styles.suggestion, i < predictions.length - 1 && styles.divider]}
+                    onPress={() => handleSelect(p)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="location-outline" size={15} color={BrandColors.textSecondary} />
+                    <Text style={styles.suggestionText} numberOfLines={2}>
+                      {p.description}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { zIndex: 99 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,9 +214,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inputRowOpen: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderBottomColor: BrandColors.divider,
+    borderColor: BrandColors.primary,
   },
   input: { flex: 1, fontSize: 15, color: BrandColors.textPrimary },
   apiKeyNotice: {
@@ -181,25 +226,24 @@ const styles = StyleSheet.create({
   },
   apiKeyNoticeText: { fontSize: 11, color: BrandColors.accent, flex: 1 },
   dropdown: {
-    borderWidth: 1.5,
-    borderTopWidth: 0,
-    borderColor: BrandColors.border,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
     backgroundColor: BrandColors.surface,
+    borderWidth: 1.5,
+    borderColor: BrandColors.border,
+    borderRadius: 10,
     overflow: 'hidden',
-    elevation: 6,
+    elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
   },
   suggestion: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     gap: 10,
+    backgroundColor: BrandColors.surface,
   },
   divider: {
     borderBottomWidth: 1,
