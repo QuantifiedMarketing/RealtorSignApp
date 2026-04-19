@@ -201,7 +201,7 @@ export default function SubmitJobScreen() {
           <Text style={styles.mapHint}>
             {Platform.OS === 'web'
               ? 'Use the mobile app to drop a precise pin. Selecting an address fills the coordinates automatically.'
-              : 'Select an address above to auto-place the pin, or tap the map directly. Drag to adjust.'}
+              : 'Zoom in and click the map to place a pin exactly where you want the sign to be installed.'}
           </Text>
           <MapPinSelector coords={pinCoords} onChange={setPinCoords} centerOn={mapCenter} />
           {!pinCoords && (

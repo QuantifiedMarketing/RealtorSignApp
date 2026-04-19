@@ -15,7 +15,7 @@ create table if not exists public.users (
   role            text not null default 'agent' check (role in ('agent', 'admin')),
   phone           text,
   brokerage       text,
-  placard_count   integer not null default 0,
+  panel_count   integer not null default 0,
   created_at      timestamptz not null default now()
 );
 
@@ -37,8 +37,8 @@ create table if not exists public.jobs (
   created_at      timestamptz not null default now()
 );
 
--- Placard inventory (authoritative count; triggers keep users.placard_count in sync)
-create table if not exists public.placard_inventory (
+-- Panel inventory (authoritative count; triggers keep users.panel_count in sync)
+create table if not exists public.panel_inventory (
   id            uuid primary key default gen_random_uuid(),
   agent_id      uuid not null unique references public.users(id) on delete cascade,
   count         integer not null default 0,
@@ -53,25 +53,25 @@ create index if not exists jobs_status_idx     on public.jobs(status);
 create index if not exists jobs_submitted_idx  on public.jobs(submitted_at desc);
 
 
--- ── 3. TRIGGER – keep users.placard_count in sync with placard_inventory ──────
+-- ── 3. TRIGGER – keep users.panel_count in sync with panel_inventory ──────
 
-create or replace function public.sync_placard_count()
+create or replace function public.sync_panel_count()
 returns trigger
 language plpgsql
 security definer
 as $$
 begin
   update public.users
-  set placard_count = NEW.count
+  set panel_count = NEW.count
   where id = NEW.agent_id;
   return NEW;
 end;
 $$;
 
-drop trigger if exists trg_sync_placard_count on public.placard_inventory;
-create trigger trg_sync_placard_count
-  after insert or update of count on public.placard_inventory
-  for each row execute function public.sync_placard_count();
+drop trigger if exists trg_sync_panel_count on public.panel_inventory;
+create trigger trg_sync_panel_count
+  after insert or update of count on public.panel_inventory
+  for each row execute function public.sync_panel_count();
 
 
 -- ── 4. HELPER – get current user's role (security definer avoids RLS recursion) ──
@@ -90,7 +90,7 @@ $$;
 --  When a user signs up (or is created via the dashboard / SQL seed), this
 --  trigger fires and inserts a matching row into public.users.
 --  raw_user_meta_data should contain: { name, role, phone, brokerage }
---  Defaults: role = 'agent', placard_count = 0
+--  Defaults: role = 'agent', panel_count = 0
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -98,7 +98,7 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.users (id, email, name, role, phone, brokerage, placard_count)
+  insert into public.users (id, email, name, role, phone, brokerage, panel_count)
   values (
     NEW.id,
     NEW.email,
@@ -123,7 +123,7 @@ create trigger trg_handle_new_user
 
 alter table public.users             enable row level security;
 alter table public.jobs              enable row level security;
-alter table public.placard_inventory enable row level security;
+alter table public.panel_inventory enable row level security;
 
 -- users
 create policy "users: read own profile"
@@ -147,13 +147,13 @@ create policy "jobs: agents update own (takedown only), admins update all"
   on public.jobs for update
   using (agent_id = auth.uid() or public.current_user_role() = 'admin');
 
--- placard_inventory
+-- panel_inventory
 create policy "inventory: agents read own, admins read all"
-  on public.placard_inventory for select
+  on public.panel_inventory for select
   using (agent_id = auth.uid() or public.current_user_role() = 'admin');
 
 create policy "inventory: admins manage all"
-  on public.placard_inventory for all
+  on public.panel_inventory for all
   using (public.current_user_role() = 'admin');
 
 
@@ -216,12 +216,80 @@ on conflict (id) do nothing;
 -- public.users rows are created by the handle_new_user trigger above.
 -- These manual inserts catch the case where the trigger wasn't in place yet,
 -- or the auth rows already existed before the trigger was added.
-insert into public.users (id, email, name, role, phone, brokerage, placard_count)
+insert into public.users (id, email, name, role, phone, brokerage, panel_count)
 values
   ('11111111-1111-1111-1111-111111111111', 'agent@test.com', 'Jane Smith',   'agent', '555-123-4567', 'Smith Realty', 12),
   ('22222222-2222-2222-2222-222222222222', 'admin@test.com', 'Mike Johnson', 'admin', null,           null,           0)
 on conflict (id) do nothing;
 
-insert into public.placard_inventory (agent_id, count)
+insert into public.panel_inventory (agent_id, count)
 values ('11111111-1111-1111-1111-111111111111', 12)
 on conflict (agent_id) do nothing;
+
+
+-- ── 8. MIGRATION – extended profile fields ────────────────────────────────────
+--  Run this section in the Supabase SQL Editor AFTER the initial schema above.
+
+alter table public.users
+  add column if not exists brokerage_address     text,
+  add column if not exists profile_photo_url     text,
+  add column if not exists default_panel_width text
+    constraint users_panel_width_check
+    check (default_panel_width in ('up_to_24_inches', 'over_24_inches')),
+  add column if not exists default_panel_orientation text
+    constraint users_panel_orientation_check
+    check (default_panel_orientation in ('portrait', 'landscape')),
+  add column if not exists default_post_colour   text
+    constraint users_post_colour_check
+    check (default_post_colour in ('black', 'white'));
+
+
+-- ── 9. STORAGE – avatars bucket ───────────────────────────────────────────────
+--  Creates a public bucket for profile photos. Run once in the SQL Editor.
+
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+-- Authenticated users can manage files in their own folder (e.g. <user_id>/avatar.jpg)
+create policy "avatars: users manage own"
+  on storage.objects for all
+  using  (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1])
+  with check (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Anyone can read avatars (public bucket)
+create policy "avatars: public read"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+
+-- ── 11. MIGRATION – push notification token ──────────────────────────────────
+--  Run this in the Supabase SQL Editor to add push token support.
+
+alter table public.users
+  add column if not exists push_token text;
+
+
+-- ── 10. STORAGE – job-photos bucket ──────────────────────────────────────────
+--  Public bucket so stored URLs work on any device without auth headers.
+--  Uploads are restricted to admins; reads are open (public bucket).
+
+insert into storage.buckets (id, name, public)
+values ('job-photos', 'job-photos', true)
+on conflict (id) do nothing;
+
+-- Only admins may upload job completion photos
+create policy "job-photos: admins upload"
+  on storage.objects for insert
+  with check (bucket_id = 'job-photos' and public.current_user_role() = 'admin');
+
+-- Admins may also overwrite (upsert) existing photos
+create policy "job-photos: admins update"
+  on storage.objects for update
+  using  (bucket_id = 'job-photos' and public.current_user_role() = 'admin')
+  with check (bucket_id = 'job-photos' and public.current_user_role() = 'admin');
+
+-- All authenticated users (agents + admins) can view job photos
+create policy "job-photos: authenticated read"
+  on storage.objects for select
+  using (bucket_id = 'job-photos' and auth.role() = 'authenticated');

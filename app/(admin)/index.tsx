@@ -24,13 +24,35 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
   );
 }
 
+function PendingJobRow({ job }: { job: Job }) {
+  return (
+    <TouchableOpacity
+      style={styles.pendingRow}
+      activeOpacity={0.7}
+      onPress={() => router.push({ pathname: '/admin-job-detail', params: { id: job.id } })}
+    >
+      <View style={styles.pendingDot} />
+      <View style={styles.pendingContent}>
+        <Text style={styles.pendingAddr} numberOfLines={1}>{job.address}</Text>
+        <Text style={styles.pendingAgent}>{job.agentName}</Text>
+      </View>
+      <View style={styles.pendingRight}>
+        <Text style={styles.pendingDate}>
+          {job.preferredDate.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color={BrandColors.accent} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function RecentJobRow({ job }: { job: Job }) {
   const s = STATUS_BADGE[job.status];
   return (
     <TouchableOpacity
       style={styles.recentRow}
       activeOpacity={0.7}
-      onPress={() => router.push({ pathname: '/job-detail', params: { id: job.id } })}
+      onPress={() => router.push({ pathname: '/admin-job-detail', params: { id: job.id } })}
     >
       <View style={styles.recentLeft}>
         <Text style={styles.recentAddr} numberOfLines={1}>{job.address}</Text>
@@ -50,12 +72,13 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const { jobs } = useJobs();
 
-  const pendingCount = jobs.filter(j => j.status === 'pending').length;
+  const pendingJobs = jobs.filter(j => j.status === 'pending');
   const activeCount = jobs.filter(j => j.status === 'active' || j.status === 'takedown_requested').length;
   const completedCount = jobs.filter(j => j.status === 'completed').length;
   const agentCount = new Set(jobs.map(j => j.agentId)).size;
 
-  const recent = jobs.slice(0, 5);
+  const nonPending = jobs.filter(j => j.status !== 'pending');
+  const recent = nonPending.slice(0, 5);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -73,17 +96,39 @@ export default function AdminDashboard() {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionLabel}>Overview</Text>
         <View style={styles.statsGrid}>
-          <StatCard icon="time-outline"            label="Pending"      value={pendingCount}   color={BrandColors.accent} />
-          <StatCard icon="location-outline"        label="Active Signs" value={activeCount}    color={BrandColors.success} />
-          <StatCard icon="people-outline"          label="Agents"       value={agentCount}     color={BrandColors.primary} />
-          <StatCard icon="checkmark-circle-outline" label="Completed"   value={completedCount} color={BrandColors.textSecondary} />
+          <StatCard icon="time-outline"             label="Pending"      value={pendingJobs.length} color={BrandColors.accent} />
+          <StatCard icon="location-outline"         label="Active Signs" value={activeCount}         color={BrandColors.success} />
+          <StatCard icon="people-outline"           label="Agents"       value={agentCount}          color={BrandColors.primary} />
+          <StatCard icon="checkmark-circle-outline" label="Completed"    value={completedCount}      color={BrandColors.textSecondary} />
         </View>
 
-        <Text style={styles.sectionLabel}>Recent Submissions</Text>
+        {pendingJobs.length > 0 && (
+          <>
+            <View style={styles.attentionHeader}>
+              <View style={styles.attentionTitleRow}>
+                <View style={styles.attentionDotLarge} />
+                <Text style={styles.attentionTitle}>Needs Attention</Text>
+                <View style={styles.attentionCount}>
+                  <Text style={styles.attentionCountText}>{pendingJobs.length}</Text>
+                </View>
+              </View>
+              <Text style={styles.attentionSub}>Pending jobs waiting for installation</Text>
+            </View>
+            <View style={styles.attentionCard}>
+              {pendingJobs.map((job, i) => (
+                <View key={job.id} style={i < pendingJobs.length - 1 ? styles.pendingDivider : undefined}>
+                  <PendingJobRow job={job} />
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        <Text style={[styles.sectionLabel, pendingJobs.length > 0 && { marginTop: 20 }]}>Recent Activity</Text>
         {recent.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-outline" size={52} color={BrandColors.border} />
-            <Text style={styles.emptyTitle}>No submissions yet</Text>
+            <Text style={styles.emptyTitle}>No activity yet</Text>
             <Text style={styles.emptySub}>New job requests will appear here</Text>
           </View>
         ) : (
@@ -149,6 +194,58 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 26, fontWeight: '800', color: BrandColors.textPrimary, marginTop: 8 },
   statLabel: { fontSize: 12, color: BrandColors.textSecondary, marginTop: 2 },
+
+  attentionHeader: { marginBottom: 10 },
+  attentionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
+  attentionDotLarge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: BrandColors.accent,
+  },
+  attentionTitle: { fontSize: 14, fontWeight: '700', color: BrandColors.textPrimary },
+  attentionCount: {
+    backgroundColor: BrandColors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  attentionCountText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  attentionSub: { fontSize: 12, color: BrandColors.textSecondary, marginLeft: 18 },
+
+  attentionCard: {
+    backgroundColor: BrandColors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: BrandColors.accent + '40',
+    shadowColor: BrandColors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 4,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  pendingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: BrandColors.accent,
+    flexShrink: 0,
+  },
+  pendingContent: { flex: 1 },
+  pendingAddr: { fontSize: 14, fontWeight: '600', color: BrandColors.textPrimary },
+  pendingAgent: { fontSize: 12, color: BrandColors.textSecondary, marginTop: 2 },
+  pendingRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pendingDate: { fontSize: 12, fontWeight: '600', color: BrandColors.accent },
+  pendingDivider: { borderBottomWidth: 1, borderBottomColor: BrandColors.divider },
+
   recentCard: {
     backgroundColor: BrandColors.surface,
     borderRadius: 14,

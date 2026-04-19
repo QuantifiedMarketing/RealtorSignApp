@@ -1,5 +1,173 @@
 SignTrack — Job Submission Options
 
+AGENT PROFILE CREATION:
+
+-name
+-phone
+-brokerage
+-brokerage address
+-email
+-sign post color preference
+-default panel dimensions (up to / over 24")
+-profile pic
+
+Uneditable
+Panels in storage
+Panels "Live"
+
+
+GENERAL
+
+Add a LOGOUT button top right by the Agent first name "Initial"
+Make it so that the Agent first name initial that appears top right of the app shows the agents uploaded profile pic if any
+Make it so that the Agent first name initial that appears top right of the app is clickable and direct to the agents "Profile" page.
+
+
+AGENT PROFILE:
+
+Editable fields
+
+-name
+-phone
+-brokerage
+-brokerage address
+-email
+-sign post color preference
+-default panel dimensions (up to / over 24")
+-profile pic
+
+Uneditable
+Panels in storage
+Panels "Live"
+
+
+JOB CREATION:
+
+Address (dropdown, mandatory)
+
+	When the address is added, a dollar figure should be showing (we'll call it a floating sub-total) that dynamically changes based on options. This is the amount that will eventually charged in Stripe.
+		-base cost is based on distance from this address, we'll call "Home Base": 45922 Thunderbird Ln #105, Chilliwack, BC V2P 0J6
+			-job address within 15 km distance from Home Base $55 CAD
+			-job between 15 - 30 km from Home Base: $70 CAD
+			-job over 30km from Home Base: 70$ for the first 30 km, plus $2 per kilometre over the 30km
+
+
+Preferred install date
+	-make this a 2 day slider were you must pick 2 consecutive days and where
+	-if you choose with 2 days from the current day, display a message that reads: "Rush installations (within 2 days) is an additional $20 charge. Continue?
+		-display two buttons "Yes" and "No" where 
+			-if yes is chosen, the date is added to the database for install and an additional $20 CAD is added to the floating sub-total and the use can continue with the job submission
+			-if no, the calendar is shown again where the agent can pick a different date
+
+Map for sign submission
+	-pin placement mandatory
+	-make a visible note that satellite view is available
+Notes section (optional)
+Submit Job
+(Jobs are "editable" from the "My Jobs" section up until the Admin approves them. The job cannot be edited if the Admin is viewing that job in the admin dashboard. A message can appear to the agent reading "You cannot edit an install while the admin is viewing the request."
+
+If there are no panels in inventory, show a warning: "We currently do not have any of your panels in inventory, please choose an option:"
+
+Options using radio buttons (must choose only one) include: 
+	1. I will drop a sign off at 45922 Thunderbird Ln #105, Chilliwack, BC V2P 0J6
+		If chosen, drop-off times are displayed: Monday 1pm - 6pm,  Tuesday to Sunday 11am to 6pm 
+	2. I will leave a sign at the property
+		If chosen, provide a mandatory text box with the instructions: "Please tell us where your sign will be." 
+	3. Please come and get a sign from my office (+$20)
+		If chosen, display the questions "Address for pickup:" with the following options using radio buttons, where only one can be selected:
+			Option 1 shows the brokerage address from the users profile (if available).
+			Option 2 "Other Location" where if selected, unlocks a Places API address dropdown, and where a real address must be selected before continuing.
+
+
+
+
+
+	
+
+		
+	
+
+
+
+AGENT DASHBOARD
+
+Top of the dashboard should have "Live Panels" in green, "Pending Installs" in Yellow, "Pending Takedowns" in Red.
+
+	When the agent clicks on active panels it brings up a list of al active panels, their address, and the date they were installed, much like the "recent jobs" list on the agent dashboard
+	When the agent clicks on Pending Installs, it brings up a list of al pending installs, their address, and the installation date range (2 day date range chosen when the job was created), much like the "recent jobs" list on the agent dashboard,
+	When the agent clicks pending takedowns, it brings up a list of al pending takedowns, their address, and the installation date range (7 day date range chosen when the job was created), much like the "recent jobs" list on the agent dashboard,
+
+Under that there should be Note: "Current panels in our inventory: "XX" where "xx" is the number of panels we have in inventory, entered by admin on the admin dashboard.
+
+Then a SUBMIT JOB Button
+
+The "Recent Jobs" lists should be clickable - you click on and it goes to that jobs details.
+
+
+
+
+
+
+
+
+ADMIN
+
+JOB ACCEPTANCE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Admin Dashboard:
+
+	When the agent clicks on active panels it brings them to a map that shows green pins for all "live" panels on their applicable addresses, if they click on the pin, it goes to that panel's "job details" page
+	When the agent clicks on Pending Installs, it shows a map of all pending install addresses using yellow pins
+	When the agent clicks pending takedowns, 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 PRICING
 - 0–15 km from base: $55
 - 16–30 km: $70
@@ -37,3 +205,6 @@ AUTOMATED REMINDERS
 ADDITIONAL SERVICES
 - Remove post (pricing TBD)
 - Repair post (pricing TBD)
+
+
+

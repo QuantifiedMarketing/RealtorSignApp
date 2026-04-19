@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "realtorsignapp",
+    "scheme": "signtrack",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -53,7 +53,21 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SignTrack to access your photo library to upload a profile photo."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1B4F8A",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

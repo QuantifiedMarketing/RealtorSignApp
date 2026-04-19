@@ -24,7 +24,7 @@ const STREET_ZOOM = { latitudeDelta: 0.005, longitudeDelta: 0.005 };
 export default function MapPinSelector({ coords, onChange, centerOn }: Props) {
   const mapRef = useRef<MapView>(null);
   const [locating, setLocating] = useState(true);
-  const [mapType, setMapType] = useState<MapTypes>('standard');
+  const [mapType, setMapType] = useState<MapTypes>('satellite');
   // Track the live region so we can preserve zoom when re-centering
   const regionRef = useRef<Region>(US_CENTER);
 
@@ -114,7 +114,7 @@ export default function MapPinSelector({ coords, onChange, centerOn }: Props) {
         activeOpacity={0.8}
       >
         <Text style={styles.mapTypeBtnText}>
-          {mapType === 'standard' ? '🛰 Satellite' : '🗺 Standard'}
+          {mapType === 'satellite' ? '🗺 Standard' : '🛰 Satellite'}
         </Text>
       </TouchableOpacity>
 

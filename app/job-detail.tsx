@@ -1,18 +1,16 @@
 import React from 'react';
 import {
-  Alert,
   Image,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { BrandColors } from '@/constants/theme';
 import { JobStatus, useJobs } from '@/context/jobs';
 
@@ -23,35 +21,6 @@ const STATUS: Record<JobStatus, { label: string; color: string; bg: string }> = 
   takedown_requested: { label: 'Takedown Requested', color: '#5B21B6',          bg: '#EDE9FE' },
 };
 
-async function pickPhoto(source: 'camera' | 'library'): Promise<string | null> {
-  if (source === 'camera') {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Camera access is needed to take a photo.');
-      return null;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: 'images',
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [4, 3],
-    });
-    return result.canceled ? null : result.assets[0].uri;
-  }
-
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    Alert.alert('Permission Required', 'Photo library access is needed.');
-    return null;
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: 'images',
-    quality: 0.8,
-    allowsEditing: true,
-    aspect: [4, 3],
-  });
-  return result.canceled ? null : result.assets[0].uri;
-}
 
 function DetailRow({
   icon,
@@ -79,7 +48,9 @@ function DetailRow({
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { jobs, updateStatus, setJobPhoto } = useJobs();
+  const { jobs } = useJobs();
+  const { width: screenWidth } = useWindowDimensions();
+  const photoWidth = screenWidth - 40;
 
   const job = jobs.find(j => j.id === id);
 
@@ -101,49 +72,6 @@ export default function JobDetailScreen() {
   }
 
   const s = STATUS[job.status];
-
-  const completeJob = async (isRemoval: boolean) => {
-    const title = isRemoval ? 'Upload Removal Photo' : 'Upload Completion Photo';
-    const message = isRemoval
-      ? 'Add a photo to confirm the sign was removed.'
-      : 'Add a photo to confirm the sign was installed.';
-
-    if (Platform.OS === 'web') {
-      // Web: skip camera option, go straight to complete
-      updateStatus(job.id, 'completed');
-      router.back();
-      return;
-    }
-
-    Alert.alert(title, message, [
-      {
-        text: 'Take Photo',
-        onPress: async () => {
-          const uri = await pickPhoto('camera');
-          if (uri) setJobPhoto(job.id, uri);
-          updateStatus(job.id, 'completed');
-          router.back();
-        },
-      },
-      {
-        text: 'Choose from Library',
-        onPress: async () => {
-          const uri = await pickPhoto('library');
-          if (uri) setJobPhoto(job.id, uri);
-          updateStatus(job.id, 'completed');
-          router.back();
-        },
-      },
-      {
-        text: 'Skip',
-        style: 'cancel',
-        onPress: () => {
-          updateStatus(job.id, 'completed');
-          router.back();
-        },
-      },
-    ]);
-  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -213,43 +141,19 @@ export default function JobDetailScreen() {
         {job.photoUri ? (
           <>
             <Text style={styles.sectionLabel}>Completion Photo</Text>
-            <Image source={{ uri: job.photoUri }} style={styles.photo} resizeMode="cover" />
+            <Image
+              source={{ uri: job.photoUri }}
+              style={{
+                width: photoWidth,
+                height: (photoWidth / 4) * 3,
+                borderRadius: 12,
+                marginBottom: 24,
+                backgroundColor: BrandColors.border,
+              }}
+              resizeMode="cover"
+            />
           </>
         ) : null}
-
-        {/* Action buttons */}
-        {job.status === 'pending' && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: BrandColors.primary }]}
-            onPress={() => updateStatus(job.id, 'active')}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="play-circle" size={20} color="#fff" />
-            <Text style={styles.actionBtnText}>Mark as Active</Text>
-          </TouchableOpacity>
-        )}
-
-        {job.status === 'active' && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: BrandColors.success }]}
-            onPress={() => completeJob(false)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-            <Text style={styles.actionBtnText}>Mark as Completed</Text>
-          </TouchableOpacity>
-        )}
-
-        {job.status === 'takedown_requested' && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: '#7C3AED' }]}
-            onPress={() => completeJob(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-            <Text style={styles.actionBtnText}>Mark Sign Removed</Text>
-          </TouchableOpacity>
-        )}
 
         {job.status === 'completed' && !job.photoUri && (
           <View style={styles.noPhotoNote}>
@@ -361,28 +265,6 @@ const styles = StyleSheet.create({
   },
   detailValue: { fontSize: 14, color: BrandColors.textPrimary, lineHeight: 20 },
 
-  photo: {
-    width: '100%',
-    height: 220,
-    borderRadius: 12,
-    marginBottom: 24,
-  },
-
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    paddingVertical: 15,
-    gap: 8,
-    marginTop: 8,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
   noPhotoNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,4 +276,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   noPhotoText: { fontSize: 13, color: BrandColors.textSecondary },
+
 });

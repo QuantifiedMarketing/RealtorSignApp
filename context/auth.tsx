@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 
 export type UserRole = 'agent' | 'admin';
+export type PanelWidth = 'up_to_24_inches' | 'over_24_inches';
+export type PostColour = 'black' | 'white';
+export type PanelOrientation = 'portrait' | 'landscape';
 
 export interface User {
   id: string;
@@ -10,7 +14,34 @@ export interface User {
   role: UserRole;
   phone?: string;
   brokerage?: string;
-  placardCount: number;
+  brokerageAddress?: string;
+  profilePhotoUrl?: string;
+  defaultPanelWidth?: PanelWidth;
+  defaultPostColour?: PostColour;
+  defaultPanelOrientation?: PanelOrientation;
+  panelCount: number;
+}
+
+export interface ProfileUpdates {
+  name?: string;
+  phone?: string;
+  brokerage?: string;
+  brokerageAddress?: string;
+  profilePhotoUrl?: string;
+  defaultPanelWidth?: PanelWidth;
+  defaultPostColour?: PostColour;
+  defaultPanelOrientation?: PanelOrientation;
+}
+
+export function isProfileComplete(user: User): boolean {
+  return !!(
+    user.phone &&
+    user.brokerage &&
+    user.brokerageAddress &&
+    user.defaultPanelWidth &&
+    user.defaultPostColour &&
+    user.defaultPanelOrientation
+  );
 }
 
 interface AuthContextType {
@@ -18,6 +49,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  register: (email: string, password: string) => Promise<{ needsVerification: boolean }>;
+  resetPassword: (email: string) => Promise<void>;
+  updateProfile: (updates: ProfileUpdates) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,7 +74,12 @@ async function fetchProfile(userId: string): Promise<User | null> {
     role: data.role,
     phone: data.phone ?? undefined,
     brokerage: data.brokerage ?? undefined,
-    placardCount: data.placard_count ?? 0,
+    brokerageAddress: data.brokerage_address ?? undefined,
+    profilePhotoUrl: data.profile_photo_url ?? undefined,
+    defaultPanelWidth: data.default_panel_width ?? undefined,
+    defaultPostColour: data.default_post_colour ?? undefined,
+    defaultPanelOrientation: data.default_panel_orientation ?? undefined,
+    panelCount: data.panel_count ?? 0,
   };
 }
 
@@ -48,7 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load the initial session directly — this runs outside the auth lock.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
@@ -57,10 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
 
-    // Watch for subsequent sign-in / sign-out events.
-    // IMPORTANT: do NOT call supabase.from() synchronously inside this callback —
-    // the SDK holds an internal auth lock during the callback and any database
-    // call that needs the session will deadlock. Defer with setTimeout(0).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -88,8 +123,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const register = async (email: string, password: string): Promise<{ needsVerification: boolean }> => {
+    const emailRedirectTo = Linking.createURL('email-verified');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo },
+    });
+    if (error) throw new Error(error.message);
+    // Supabase returns an empty identities array (rather than an error) when the
+    // email is already registered, to prevent email enumeration.
+    if (!data.user?.identities || data.user.identities.length === 0) {
+      throw new Error('email-already-exists');
+    }
+    return { needsVerification: !data.session };
+  };
+
+  const resetPassword = async (email: string) => {
+    const redirectTo = Linking.createURL('reset-password');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw new Error(error.message);
+  };
+
+  const updateProfile = async (updates: ProfileUpdates) => {
+    if (!user) return;
+
+    const dbRow: Record<string, unknown> = {};
+    if (updates.name !== undefined) dbRow.name = updates.name;
+    if (updates.phone !== undefined) dbRow.phone = updates.phone;
+    if (updates.brokerage !== undefined) dbRow.brokerage = updates.brokerage;
+    if (updates.brokerageAddress !== undefined) dbRow.brokerage_address = updates.brokerageAddress;
+    if (updates.profilePhotoUrl !== undefined) dbRow.profile_photo_url = updates.profilePhotoUrl;
+    if (updates.defaultPanelWidth !== undefined) dbRow.default_panel_width = updates.defaultPanelWidth;
+    if (updates.defaultPostColour !== undefined) dbRow.default_post_colour = updates.defaultPostColour;
+    if (updates.defaultPanelOrientation !== undefined) dbRow.default_panel_orientation = updates.defaultPanelOrientation;
+
+    const { error } = await supabase.from('users').update(dbRow).eq('id', user.id);
+    if (error) throw new Error(error.message);
+
+    setUser(prev => (prev ? { ...prev, ...updates } : null));
+  };
+
+  const refreshProfile = async () => {
+    if (!user) return;
+    const profile = await fetchProfile(user.id);
+    setUser(profile);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, register, resetPassword, updateProfile, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -66,12 +66,12 @@ export default function AdminSettingsScreen() {
           <SettingsRow
             icon="people-outline"
             label="Manage Agents"
-            subtitle="View profiles and placard counts"
+            subtitle="View profiles and panel counts"
           />
           <SettingsRow
             icon="layers-outline"
-            label="Placard Inventory"
-            subtitle="Adjust placard counts per agent"
+            label="Panel Inventory"
+            subtitle="Adjust panel counts per agent"
           />
           <SettingsRow
             icon="alert-circle-outline"

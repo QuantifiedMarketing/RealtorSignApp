@@ -21,30 +21,21 @@ function relativeTime(d: Date): string {
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;
   if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
 
-type NextAction = { label: string; nextStatus: JobStatus; icon: string } | null;
-
-function nextAction(status: JobStatus): NextAction {
-  if (status === 'pending') return { label: 'Mark Active', nextStatus: 'active', icon: 'play-circle-outline' };
-  if (status === 'active') return { label: 'Mark Complete', nextStatus: 'completed', icon: 'checkmark-circle-outline' };
-  if (status === 'takedown_requested') return { label: 'Mark Removed', nextStatus: 'completed', icon: 'checkmark-circle-outline' };
-  return null;
-}
-
-function JobCard({ job, onUpdateStatus }: { job: Job; onUpdateStatus: (id: string, s: JobStatus) => void }) {
+function JobCard({ job }: { job: Job }) {
   const s = STATUS[job.status];
-  const action = nextAction(job.status);
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, job.status === 'pending' && styles.cardPending]}
       activeOpacity={0.75}
-      onPress={() => router.push({ pathname: '/job-detail', params: { id: job.id } })}
+      onPress={() => router.push({ pathname: '/admin-job-detail', params: { id: job.id } })}
     >
       <View style={styles.cardTop}>
         <View style={styles.agentRow}>
+          {job.status === 'pending' && <View style={styles.pendingDot} />}
           <Ionicons name="person-circle-outline" size={14} color={BrandColors.textSecondary} />
           <Text style={styles.agentText}>{job.agentName}</Text>
         </View>
@@ -61,7 +52,7 @@ function JobCard({ job, onUpdateStatus }: { job: Job; onUpdateStatus: (id: strin
       <View style={styles.metaRow}>
         <Ionicons name="calendar-outline" size={13} color={BrandColors.textSecondary} />
         <Text style={styles.metaText}>
-          {job.preferredDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          {job.preferredDate.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
         </Text>
         <Text style={styles.metaDot}>·</Text>
         <Ionicons name="time-outline" size={13} color={BrandColors.textSecondary} />
@@ -75,16 +66,10 @@ function JobCard({ job, onUpdateStatus }: { job: Job; onUpdateStatus: (id: strin
         </View>
       ) : null}
 
-      {action && (
-        <TouchableOpacity
-          style={styles.actionBtn}
-          activeOpacity={0.8}
-          onPress={e => { e.stopPropagation?.(); onUpdateStatus(job.id, action.nextStatus); }}
-        >
-          <Ionicons name={action.icon as any} size={15} color={BrandColors.primary} />
-          <Text style={styles.actionText}>{action.label}</Text>
-        </TouchableOpacity>
-      )}
+      <View style={styles.tapHint}>
+        <Text style={styles.tapHintText}>Tap to manage</Text>
+        <Ionicons name="chevron-forward" size={13} color={BrandColors.textSecondary} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -99,7 +84,7 @@ function filterMatch(job: Job, filter: Filter): boolean {
 
 export default function AdminJobsScreen() {
   const [filter, setFilter] = useState<Filter>('All');
-  const { jobs, updateStatus } = useJobs();
+  const { jobs } = useJobs();
   const filtered = jobs.filter(j => filterMatch(j, filter));
 
   return (
@@ -128,7 +113,7 @@ export default function AdminJobsScreen() {
         keyExtractor={j => j.id}
         contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.list}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <JobCard job={item} onUpdateStatus={updateStatus} />}
+        renderItem={({ item }) => <JobCard job={item} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="list-outline" size={52} color={BrandColors.border} />
@@ -223,14 +208,25 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   notesText: { flex: 1, fontSize: 12, color: BrandColors.textSecondary, fontStyle: 'italic' },
-  actionBtn: {
+  cardPending: {
+    borderWidth: 1.5,
+    borderColor: BrandColors.accent + '60',
+  },
+  pendingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: BrandColors.accent,
+  },
+  tapHint: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingTop: 10,
+    justifyContent: 'flex-end',
+    gap: 3,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: BrandColors.divider,
   },
-  actionText: { fontSize: 13, fontWeight: '700', color: BrandColors.primary },
+  tapHintText: { fontSize: 12, color: BrandColors.textSecondary },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image, View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -14,15 +14,15 @@ const STATUS_BADGE: Record<JobStatus, { label: string; color: string; bg: string
   takedown_requested: { label: 'Takedown Req.', color: '#5B21B6', bg: '#EDE9FE' },
 };
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
+function StatCard({ icon, label, value, color, onPress }: { icon: string; label: string; value: number; color: string; onPress: () => void }) {
   return (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
+    <TouchableOpacity style={[styles.statCard, { borderLeftColor: color }]} onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.statIcon, { backgroundColor: color + '1A' }]}>
         <Ionicons name={icon as any} size={20} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -56,8 +56,9 @@ export default function AgentDashboard() {
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   const myJobs = user ? getJobsByAgent(user.id) : [];
-  const activeCount = myJobs.filter(j => j.status === 'active').length;
-  const pendingCount = myJobs.filter(j => j.status === 'pending').length;
+  const livePanelsCount    = myJobs.filter(j => j.status === 'active').length;
+  const pendingInstalls    = myJobs.filter(j => j.status === 'pending').length;
+  const pendingTakedowns   = myJobs.filter(j => j.status === 'takedown_requested').length;
   const recentJobs = myJobs.slice(0, 3);
 
   return (
@@ -68,31 +69,27 @@ export default function AgentDashboard() {
             <Text style={styles.greeting}>{greeting()}</Text>
             <Text style={styles.name}>{firstName}</Text>
           </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase()}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.8}
+            hitSlop={6}
+          >
+            {user?.profilePhotoUrl ? (
+              <Image source={{ uri: user.profilePhotoUrl }} style={styles.avatarPhoto} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionLabel}>Overview</Text>
         <View style={styles.statsRow}>
-          <StatCard
-            icon="layers-outline"
-            label="Placards"
-            value={user?.placardCount ?? 0}
-            color={BrandColors.primary}
-          />
-          <StatCard icon="location-outline" label="Active Signs" value={activeCount} color={BrandColors.success} />
-          <StatCard icon="time-outline" label="Pending" value={pendingCount} color={BrandColors.accent} />
+          <StatCard icon="location"           label="Live Panels"       value={livePanelsCount}  color={BrandColors.success} onPress={() => router.push({ pathname: '/filtered-jobs', params: { filter: 'active',             title: 'Live Panels' } })} />
+          <StatCard icon="time-outline"      label="Pending Installs"  value={pendingInstalls}  color={BrandColors.accent}  onPress={() => router.push({ pathname: '/filtered-jobs', params: { filter: 'pending',             title: 'Pending Installs' } })} />
+          <StatCard icon="arrow-down-outline" label="Pending Takedowns" value={pendingTakedowns} color={BrandColors.error}   onPress={() => router.push({ pathname: '/filtered-jobs', params: { filter: 'takedown_requested', title: 'Pending Takedowns' } })} />
         </View>
-
-        {(user?.placardCount ?? 0) <= 3 && (
-          <View style={styles.alert}>
-            <Ionicons name="warning-outline" size={18} color={BrandColors.warning} />
-            <Text style={styles.alertText}>
-              Low placard count — contact the operator to restock.
-            </Text>
-          </View>
-        )}
 
         <Text style={styles.sectionLabel}>Quick Actions</Text>
         <TouchableOpacity style={styles.primaryAction} activeOpacity={0.88} onPress={() => router.push('/submit-job')}>
@@ -154,6 +151,13 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarPhoto: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: BrandColors.primary + '40',
   },
   avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   sectionLabel: {
